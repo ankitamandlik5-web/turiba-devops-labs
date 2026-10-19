@@ -21,15 +21,16 @@ app.get('/', (req, res) => {
   res.json({ name: 'course-api', version });
 });
 
-// Lab 2 (step 2.4): add the GET /healthz route here.
-
-app.get('/api/todos', async (req, res) => {
-  const { rows } = await pool.query(
-    'SELECT id, title, done, created_at FROM todos ORDER BY id'
-  );
-  res.json(rows);
+// Lab 2 (step 2.4): GET /healthz for container health check.
+app.get('/healthz', (req, res) => res.status(200).json({ status: 'ok' }));
+app.get('/api/todos', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT id, title, created_at FROM todos ORDER BY id');
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
 });
-
 app.post('/api/todos', async (req, res) => {
   const error = validateTitle(req.body?.title);
   if (error) return res.status(400).json({ error });
