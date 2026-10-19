@@ -22,12 +22,14 @@ app.get('/', (req, res) => {
 });
 
 // Lab 2 (step 2.4): add the GET /healthz route here.
-
-app.get('/healthz', async (req, res) => {
-  const { rows } = await pool.query(
-    'SELECT id, title, done, created_at FROM todos ORDER BY id'
-  );
-  res.json(rows);
+app.use(express.json());
+app.get('/api/todos', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT id, title, created_at FROM todos ORDER BY id');
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.post('/api/todos', async (req, res) => {
