@@ -71,6 +71,13 @@ Why the restore must run before api starts: The API's ensureSchema() creates the
 - Why this fix, and not the tempting one: the browser runs on the laptop, not in Docker. It can't resolve `api` — only containers on the same Docker network can. Using `/api/todos` goes through nginx on port 8104, which is on the same network as `api` and can forward the call. Publishing `api`'s port 5000 to the laptop would "work" but would expose the API to the world and bypass nginx.
 - Hints used: 0
 
+### c5
+- Error line: no error message — the stack runs fine, but the todo disappears after `docker compose down` and `up`.
+- Checkpoint: data, on `db`
+- Fix: add `volumes: - pgdata:/var/lib/postgresql/data` to the `db` service in `compose.yaml`.
+- Why this fix, and not the tempting one: without a named volume mounted at `/var/lib/postgresql/data`, PostgreSQL writes to the container's writable layer. `down` removes the container and its writable layer, so the data goes with it. The `pgdata:` declaration at the bottom of the file was a red herring — it creates a volume but nothing uses it. The tempting fix is `docker compose stop` instead of `down`, but that isn't what the lab requires (and it doesn't survive a real container deletion). Adding the volume is the correct fix.
+- Hints used: 0
+
 ## 5 · Run in one command
 
 ```bash
