@@ -16,7 +16,6 @@ services:
     volumes:
        - pgdata:/var/lib/postgresql/data     # a named volume: which name? Declare it at the bottom too (slide 30)
     healthcheck:
-      #test: ["CMD", "pg_isready", "-h", "____", "-U", "todo", "-d", "todo"]   # runs INSIDE db (slide 37)
       test: ["CMD-SHELL", "pg_isready -U todo -d todo -h localhost"]
       interval: 5s
       timeout: 3s
@@ -25,29 +24,29 @@ services:
     networks: [back]                      # no ports: unreachable from the laptop
     restart: unless-stopped
 
-  # api:                                    # your Lab 2 Dockerfile
-  #   build: ./api
-  #   environment:
-  #     DB_HOST: ____                       # how does api find the database? (slide 24)
-  #     DB_USER: todo
-  #     DB_NAME: todo
-  #     DB_PASSWORD: ${____:?set DB_PASSWORD in .env}
-  #   depends_on:
-  #     db:
-  #       condition: ____                   # started is not ready (slide 37)
-  #   networks: [____, ____]                # api talks to web and to db (slide 27)
-  #   restart: unless-stopped
+  api:                                    # your Lab 2 Dockerfile
+    build: ./api
+    environment:
+      DB_HOST: db                       # how does api find the database? (slide 24)
+      DB_USER: todo
+      DB_NAME: todo
+      DB_PASSWORD: ${DB_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy                   # started is not ready (slide 37)
+    networks: [front, back]                # api talks to web and to db (slide 27)
+    restart: unless-stopped
 
-  # web:                                    # nginx: the page + the reverse proxy
-  #   build: ./web
-  #   ports:
-  #     - "____:____"                       # HOST:CONTAINER. Browser: 8080, nginx: 80 (slide 25)
-  #   depends_on:
-  #     api:
-  #       condition: service_started
-  #       restart: true                     # api recreated → restart web (slide 35)
-  #   networks: [front]
-  #   restart: unless-stopped
+  web:                                    # nginx: the page + the reverse proxy
+    build: ./web
+    ports:
+      - "8080:80"                       # HOST:CONTAINER. Browser: 8080, nginx: 80 (slide 25)
+    depends_on:
+      api:
+        condition: service_started
+        restart: true                     # api recreated → restart web (slide 35)
+    networks: [front]
+    restart: unless-stopped
 
 networks:
   front:
