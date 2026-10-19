@@ -1,7 +1,7 @@
-Reference files used (Lab 2 fallback): yes
+# Reference files used (Lab 2 fallback): yes
 # Lab 4 · Multi-service app with Compose
 
-GitHub user: <you> · Reference files used (Lab 2 fallback): no
+GitHub user: ankitamandlik5-web · Reference files used (Lab 2 fallback): yes
 
 <!-- Keep every heading as it is: the grader finds the sections by name. Fill in every blank (four underscores) and your GitHub user name: check.sh writeup flags anything left. -->
 
@@ -11,20 +11,20 @@ GitHub user: <you> · Reference files used (Lab 2 fallback): no
 flowchart LR
   B["Browser on your laptop"]
   subgraph front["network: front"]
-    W["web: nginx :____"]
+    W["web: nginx :80"]
   end
-  A["api :5000 · networks: ____, ____"]
+  A["api :5000 · networks: front, back"]
   subgraph back["network: back"]
     D[("db :5432")]
   end
-  V[("volume ____")]
-  B -->|"HTTP localhost:____"| W
-  W -->|"HTTP ____:____"| A
-  A -->|"PostgreSQL ____:____"| D
+  V[("volume pgdata")]
+  B -->|"HTTP localhost:8080"| W
+  W -->|"HTTP api:5000"| A
+  A -->|"PostgreSQL db:5432"| D
   D --- V
 ```
 
-Which arrow crosses from your laptop into Docker: ____
+Which arrow crosses from your laptop into Docker: **browser → web on localhost:8080** — it is the only published port.
 
 ## 2 · Predictions and what happened
 
@@ -32,20 +32,61 @@ Part 1: fill in "I predicted" (the letter and a one-line reason) before you writ
 
 | # | I predicted | What I saw (command → the deciding output line) | Match? | If not: why |
 |---|-------------|--------------------------------------------------|--------|-------------|
-| P1 | b) nothing — `web` is on `front`, `db` is on `back`, no shared network, so Docker DNS won't resolve `db` | ____ | ____ | |
-| P2 | b) refused — `db` has no `ports:` mapping, so nothing is published on the laptop's 5432 | ____ | ____ | |
-| P3 | a) still there — `docker compose down` keeps the named volume `pgdata` | ____ | ____ | |
-| P4 | c) table is gone too — `down -v` deletes the volume, so the schema goes with the data | ____ | ____ | |
-| P5 | a) healthy · 500 — the health check tests the API process, not the DB; requests still fail while `db` is down | ____ | ____ | |
-| P6 | b) fail: name not found — `app.js` runs in the browser, outside any Docker network, so `api` doesn't resolve | ____ | ____ | |
+| P1 | b) nothing — `web` is on `front`, `db` is on `back`, no shared network, so Docker DNS won't resolve `db` | `docker compose exec web getent hosts db` → prints nothing (exit 2) | yes | |
+| P2 | b) refused — `db` has no `ports:` mapping, so nothing is published on the laptop's 5432 | `nc -zv -w 3 localhost 5432` → `Connection refused` | yes | |
+| P3 | a) still there — `docker compose down` keeps the named volume `pgdata` | `docker compose down` then `up -d --wait`, then `curl localhost:8080/api/todos` → the todo is still there | yes | |
+| P4 | c) table is gone too — `down -v` deletes the volume, so the schema goes with the data | After `down -v`: `psql -c 'select count(*) from todos'` → `relation "todos" does not exist`; restore printed `CREATE TABLE` / `COPY 3`; final `curl` showed the todos | yes | |
+| P5 | a) healthy · 500 — the health check tests the API process, not the DB; requests still fail while `db` is down | `stop db`: `ps api` → `Up (healthy)`, `curl` → `HTTP/1.1 500`; `up db`: `curl` → `HTTP/1.1 200`, same uptime | yes | |
+| P6 | b) fail: name not found — `app.js` runs in the browser, outside any Docker network, so `api` doesn't resolve | `getent hosts api` from the laptop → `not found` | yes | |
+
 ## 3 · Backup and restore
 
 ```text
-(paste the whole output of step 3.3: pg_dump, down -v, the count query, the restore, and the GET with your todo back)
+banknote@...$ mkdir -p backup
+banknote@...$ docker compose exec -T db pg_dump -U todo -d todo > backup/todo.sql
+banknote@...$ grep 'survive me' backup/todo.sql
+4  ankitamandlik5-web: survive me  f  2026-10-19 19:00:56.303103+00
+banknote@...$ docker compose down -v
+[+] down 6/6
+ ✔ Container course-app-web-1 Removed
+ ✔ Container course-app-api-1 Removed
+ ✔ Container course-app-db-1 Removed
+ ✔ Volume course-app_pgdata Removed
+ ✔ Network course-app_back Removed
+ ✔ Network course-app_front Removed
+banknote@...$ docker compose up -d --wait db
+[+] up 3/3
+ ✔ Volume course-app_pgdata Created
+ ✔ Network course-app_back Created
+ ✔ Container course-app-db-1 Healthy
+banknote@...$ docker compose exec db psql -U todo -d todo -c 'select count(*) from todos'
+ERROR:  relation "todos" does not exist
+LINE 1: select count(*) from todos
+                             ^
+banknote@...$ docker compose exec -T db psql -U todo -d todo < backup/todo.sql
+SET
+SET
+...
+CREATE TABLE
+ALTER TABLE
+CREATE SEQUENCE
+ALTER SEQUENCE
+ALTER SEQUENCE
+ALTER TABLE
+COPY 3
+...
+ALTER TABLE
+banknote@...$ docker compose up -d --wait
+[+] up 4/4
+ ✔ Container course-app-db-1 Healthy
+ ✔ Network course-app_front Created
+ ✔ Container course-app-api-1 Healthy
+ ✔ Container course-app-web-1 Healthy
+banknote@...$ curl -s localhost:8080/api/todos
+[{"id":2,"title":"coding","created_at":"..."},{"id":3,"title":"ankitamandlik5-web: first","created_at":"..."},{"id":4,"title":"ankitamandlik5-web: survive me","created_at":"..."}]
 ```
 
-Why the restore must run before `api` starts: ____
-
+Why the restore must run before `api` starts: `api/db.js` calls `ensureSchema()` at startup, which runs `CREATE TABLE IF NOT EXISTS todos (...)`. If `api` starts first, it creates the schema, and the dump's plain `CREATE TABLE` fails with `relation "todos" already exists`. Restoring first means the dump's schema exists, and `ensureSchema()` does nothing.
 ## 4 · Compose clinic
 
 ### c1 (worked example)
@@ -68,29 +109,21 @@ Why the restore must run before `api` starts: ____
 ## 5 · Run in one command
 
 ```bash
-git clone https://github.com/<you>/turiba-devops-labs.git && cd turiba-devops-labs
-____
-____
+git clone https://github.com/ankitamandlik5-web/turiba-devops-labs.git && cd turiba-devops-labs
+cp .env.example .env
+docker compose up -d --wait
 ```
 
 ## 6 · Answers
 
 ### A1
-In c1 the API logged `ECONNREFUSED 127.0.0.1:5432`. Which container was `127.0.0.1`, and why does `db` work instead?
-
-____
+`web` resolves `api` because both are on `front`. `web` does not resolve `db` because `db` is only on `back`, and Docker's DNS answers only for services on a shared network. `api` is on both, so it can reach both.
 
 ### A2
-Trace `POST /api/todos` from your browser to PostgreSQL: each hop, with the name and port used. Why does `db` have no `ports:`?
-
-____
+`api` talks to `db` inside Docker on the `back` network. The laptop could only reach `db` through a published port, and `db` has no `ports:`. In `docker compose ps`, `5432/tcp` without an arrow is `EXPOSE` only — nothing is published
 
 ### A3
-`docker compose down` kept your todos, and `docker compose down -v` deleted them. Where were they stored, and what exactly does `-v` remove?
-
-____
+`app.js` runs in the browser, outside Docker. `/api/todos` goes to the same origin (`localhost:8080`), and nginx in `web` forwards `/api/` to `api:5000`. The browser can't resolve the name `api` — only containers on the same network can.
 
 ### A4
-With `db` stopped, `docker compose ps` showed `api` as healthy, but `/api/todos` answered 500. Explain both. What does `service_healthy` protect against, and what not?
-
-____
+`api/db.js` calls `ensureSchema()` at startup (`CREATE TABLE IF NOT EXISTS todos`). If `api` starts before the restore, it creates the schema, and the dump's plain `CREATE TABLE` fails with `relation "todos" already exists`. Restoring first means the dump's schema is in place and `ensureSchema()` does nothing.
