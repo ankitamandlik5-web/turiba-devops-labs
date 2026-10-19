@@ -64,6 +64,13 @@ Why the restore must run before api starts: The API's ensureSchema() creates the
 - Why this fix, and not the tempting one: `web` is on `front`, `api` only on `back`. Docker's DNS answers names only between containers on a shared network. Removing the `proxy_pass http://api:5000;` line would make nginx start, but the app would return 404 for every `/api/` call — you'd have removed the feature to fix the bug.
 - Hints used: 0
 
+### c4
+- Error line: browser console shows `GET http://api:5000/api/todos net::ERR_NAME_NOT_RESOLVED`; the page's status line is empty
+- Checkpoint: path, from the browser
+- Fix: change `public/app.js` line 2 from `const API = 'http://api:5000/api/todos';` to `const API = '/api/todos';`
+- Why this fix, and not the tempting one: the browser runs on the laptop, not in Docker. It can't resolve `api` — only containers on the same Docker network can. Using `/api/todos` goes through nginx on port 8104, which is on the same network as `api` and can forward the call. Publishing `api`'s port 5000 to the laptop would "work" but would expose the API to the world and bypass nginx.
+- Hints used: 0
+
 ## 5 · Run in one command
 
 ```bash
