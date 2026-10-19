@@ -29,7 +29,7 @@ P3	Todos still there after down + up	a(yes)	—
 P4	relation "todos" does not exist	c(yes)	—	
 P5	HTTP/1.1 500 while db stopped; 200 after db up	a(yes)	—	
 P6	Browser can't resolve api (only web sees it internally)	b(yes)	—	
-Backup and restore
+## Backup and restore
 (Paste the terminal output of the backup block here, from mkdir -p backup to the last curl)
 
 Why the restore must run before api starts: The API's ensureSchema() creates the todos table on startup. If api starts first, it creates an empty table. When the dump tries to restore CREATE TABLE todos, it fails because the table already exists. Restoring before api starts means the dump creates the table, and api sees it already there.
