@@ -96,15 +96,37 @@ Why the restore must run before `api` starts: `api/db.js` calls `ensureSchema()`
 - Why this fix, and not the tempting one: inside `api`, `localhost` is `api` itself, and nothing listens on 5432 there. Docker's DNS answers `db` with the database container's address. Publishing `db`'s port would "work" by opening a door into the database.
 - Hints used: 0
 
-<!-- Copy the block below once for every mission you solved and change cN to c2, c3 … Then delete the cN block itself. -->
+### c2
+- Committed fix: `lab4/clinic/c2/`
+- Error line (copied): `curl -v localhost:8102` → `connect to 127.0.0.1 port 8102 failed: Connection refused`
+- Checkpoint: port (reversed `HOST:CONTAINER` mapping)
+- Fix: `web: ports: - "8102:3000"` (was `"3000:8102"`)
+- Why this fix, and not the tempting one: format is `HOST:CONTAINER`; nginx listens on 3000 inside the container, and the mission's goal is to open on `8102` on the laptop. Tempting: change `nginx.conf` to listen on 8102 — but the mission says "nginx.conf stays as it is"; the fault is in the Compose mapping, not in the app.
+- Hints used: 0
 
-### cN
-- Committed fix: `lab4/clinic/cN/`
-- Error line (copied): ____
-- Checkpoint (name / path / port / app / config / data): ____
-- Fix: ____
-- Why this fix, and not the tempting one: ____
-- Hints used: ____
+### c3
+- Committed fix: `lab4/clinic/c3/`
+- Error line (copied): `nginx: [emerg] host not found in upstream "api" in /etc/nginx/conf.d/default.conf:6`
+- Checkpoint: name (Docker DNS on a shared network)
+- Fix: `api: networks: [front, back]` (was `[back]`)
+- Why this fix, and not the tempting one: `web` is on `front`, so it needs `api` on `front` too. Adding `web` to `back` would also fix the DNS, but it would give `web` access to `db`, and the goal explicitly requires "web still can't reach db". `api` on both networks keeps the boundary intact.
+- Hints used: 0
+
+### c4
+- Committed fix: `lab4/clinic/c4/`
+- Error line (copied): browser Console: `GET http://api:5000/api/todos net::ERR_NAME_NOT_RESOLVED`
+- Checkpoint: path (browser can't resolve the name `api`)
+- Fix: `public/app.js` line 2: `const API = '/api/todos';` (was `'http://api:5000/api/todos'`)
+- Why this fix, and not the tempting one: `app.js` runs in the browser, outside any Docker network — it can't resolve `api`, and `localhost:5000` isn't published. Relative `/api/todos` goes to the same origin, and nginx forwards `/api/` to `api:5000`. Tempting: publish `api`'s port to the laptop — but that bypasses nginx and breaks the single-door pattern.
+- Hints used: 0
+
+### c5
+- Committed fix: `lab4/clinic/c5/`
+- Error line (copied): after `docker compose down` + `up -d`, `curl localhost:8105/api/todos` → `[]` (the todo is gone)
+- Checkpoint: data (PostgreSQL writes to the container's writable layer)
+- Fix: add `volumes: - pgdata:/var/lib/postgresql/data` under `db`, and a top-level `volumes: pgdata:`
+- Why this fix, and not the tempting one: `down` deletes the container, and any data in the container layer goes with it. A named volume survives `down`/`up`. Tempting: use `docker compose stop` instead of `down` — that hides the bug but the mission tests `down`.
+- Hints used: 0
 
 ## 5 · Run in one command
 
