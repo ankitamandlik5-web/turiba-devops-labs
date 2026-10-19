@@ -50,14 +50,19 @@ Why the restore must run before api starts: The API's ensureSchema() creates the
 - Why this fix, and not the tempting one: inside `api`, `localhost` is `api` itself, and nothing listens on 5432 there. Docker's DNS answers `db` with the database container's address. Publishing `db`'s port would "work" by opening a door into the database.
 - Hints used: 0
 
-<!-- Copy the block below once for every mission you solved and change cN to c2, c3 … Then delete the cN block itself. -->
-### cN
-- Committed fix: `lab4/clinic/cN/`
-- Error line (copied): ____
-- Checkpoint (name / path / port / app / config / data): ____
-- Fix: ____
-- Why this fix, and not the tempting one: ____
-- Hints used: ____
+### c2
+- Error line (copied): The stack started but `curl localhost:8102` answered nothing. `docker compose ps` showed `0.0.0.0:3000->8102/tcp` — the port mapping was inverted.
+- Checkpoint: port, on `web`
+- Fix: `ports: - "8102:3000"` in `compose.yaml`
+- Why this fix, and not the tempting one: nginx in `c2` listens on 3000 (see `nginx.conf`). The starter had `3000:8102`, which maps host 3000 → container 8102. Nothing is listening on container 8102, so the browser sees an empty reply. The temptation is to `docker compose down && up` without changing the port, but that won't fix it: the mapping direction is the bug.
+- Hints used: 0
+
+### c3
+- Error line (copied): `nginx: [emerg] host not found in upstream "api" in /etc/nginx/conf.d/default.conf:6`
+- Checkpoint: name, from `web`
+- Fix: `networks: [front, back]` on `api` (was `[back]` only)
+- Why this fix, and not the tempting one: `web` is on `front`, `api` only on `back`. Docker's DNS answers names only between containers on a shared network. Removing the `proxy_pass http://api:5000;` line would make nginx start, but the app would return 404 for every `/api/` call — you'd have removed the feature to fix the bug.
+- Hints used: 0
 
 ## 5 · Run in one command
 
@@ -66,6 +71,7 @@ git clone https://github.com/<you>/turiba-devops-labs.git && cd turiba-devops-la
 ____
 ____
 ```
+
 
 ## 6 · Answers
 
