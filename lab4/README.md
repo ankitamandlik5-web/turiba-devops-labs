@@ -30,20 +30,16 @@ Part 1: fill in "I predicted" (the letter and a one-line reason) before you writ
 
 | # | I predicted | What I saw (command → the deciding output line) | Match? | If not: why |
 |---|-------------|--------------------------------------------------|--------|-------------|
-| P1 | ____ | ____ | ____ | |
-| P2 | ____ | ____ | ____ | |
-| P3 | ____ | ____ | ____ | |
-| P4 | ____ | ____ | ____ | |
-| P5 | ____ | ____ | ____ | |
-| P6 | ____ | ____ | ____ | |
+| P1 | 172.20.0.2 api api — name resolved | a(yes) | ____ | |
+| P2 | Connection refused on 5432 | b(yes) | ____ | |
+| P3 | Todos still there after down + up | a(yes) | ____ | |
+| P4 | relation "todos" does not exist | c(yes) | ____ | |
+| P5 | HTTP/1.1 500 while db stopped; 200 after db up | a(yes) | ____ | |
+| P6 | 	Browser can't resolve api (only web sees it internally) | b(yes) | ____ | |
 
 ## 3 · Backup and restore
 
-```text
-(paste the whole output of step 3.3: pg_dump, down -v, the count query, the restore, and the GET with your todo back)
-```
-
-Why the restore must run before `api` starts: ____
+Why the restore must run before api starts: The API's ensureSchema() creates the todos table on startup. If api starts first, it creates an empty table. When the dump tries to restore CREATE TABLE todos, it fails because the table already exists. Restoring before api starts means the dump creates the table, and api sees it already there.
 
 ## 4 · Compose clinic
 
@@ -55,7 +51,6 @@ Why the restore must run before `api` starts: ____
 - Hints used: 0
 
 <!-- Copy the block below once for every mission you solved and change cN to c2, c3 … Then delete the cN block itself. -->
-
 ### cN
 - Committed fix: `lab4/clinic/cN/`
 - Error line (copied): ____
