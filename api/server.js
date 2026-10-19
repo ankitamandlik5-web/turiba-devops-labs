@@ -21,16 +21,8 @@ app.get('/', (req, res) => {
   res.json({ name: 'course-api', version });
 });
 
-// Lab 2 (step 2.4): add the GET /healthz route here.
-app.use(express.json());
-app.get('/api/todos', async (req, res, next) => {
-  try {
-    const { rows } = await pool.query('SELECT id, title, created_at FROM todos ORDER BY id');
-    res.json(rows);
-  } catch (err) {
-    next(err);
-  }
-});
+// Lab 2 (step 2.4): GET /healthz for container health check.
+app.get('/healthz', (req, res) => res.status(200).json({ status: 'ok' }));
 
 app.post('/api/todos', async (req, res) => {
   const error = validateTitle(req.body?.title);
