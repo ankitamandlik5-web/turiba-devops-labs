@@ -1,244 +1,183 @@
 # Lab 2 · Containerize it, then debug it
 
-**Student GitHub:** zaidh2003
-
-- **Image:** `ghcr.io/zaidh2003/course-api:lab2`
-- **Platforms:** `linux/amd64`, `linux/arm64`
-- **Base image:** `node:24-alpine`
-- **Base image digest:** `sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1`
-
----
+- **Image:** `ghcr.io/ikaran34/course-api:lab2` (public, linux/amd64 + linux/arm64)
+- **Index digest:** `sha256:f3fee589f42e7628e28ff1e4fa3ba8786e8ee33857af6d1a17b1d25a898c4b87`
+- **Base image digest:** `node:24-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20`
 
 ## Part 1 · Images and layers
 
-### Base image comparison
-
 | Image | Size | Distro | Default user |
-|---|---:|---|---|
-| `node:24` | 1.66 GB | Debian 12 (bookworm) | root |
-| `node:24-slim` | 332 MB | Debian 12 (bookworm) | root |
-| `node:24-alpine` | 304 MB | Alpine Linux 3.24 | root |
+|-------|-----:|--------|--------------|
+| node:24 | 1.64 GB | Debian GNU/Linux 12 (bookworm) | root (uid=0) |
+| node:24-slim | 330 MB | Debian GNU/Linux 12 (bookworm) | root (uid=0) |
+| node:24-alpine | 241 MB | Alpine Linux v3.24 | root (uid=0) |
 
-### Copy-on-write experiment
+`User=` is empty in `docker image inspect`, which means root.
 
-- `cow:bad` = **65.4 MB**
-- `cow:good` = **12.9 MB**
-- Difference = **52.5 MB**
+cow:bad = 65.4 MB · cow:good = 12.9 MB
 
-`cow:bad` is larger because Docker image layers are immutable. The large file was created in one layer and deleted in another layer. Deleting it only hides the file; its data still exists in the earlier layer.
-
-In `cow:good`, the large file is created and removed in the same layer, so it is not preserved in the final image layers.
-
-### Build cache experiment
+**Why cow:bad is bigger:** `cow:bad` creates `/big.file` in one `RUN` and deletes it in a second `RUN`. Layers are immutable — the delete only adds a small whiteout marker in the new layer; the 50 MB stays in the earlier layer. `cow:good` does both in a single `RUN`, so the file never enters any layer at all.
 
 | Build | RUN step CACHED? | Build time |
-|---|---|---:|
-| b · `app.txt` changed | Yes | ~0.4 s |
-| c · `deps.txt` changed | No | 17.519 s |
-| d · `app.txt` changed, wrong order | No | 16.901 s |
-
-Changing only `app.txt` did not invalidate the dependency installation layer when the dependency file was copied first.
-
-Changing `deps.txt` invalidated the dependency layer and caused the expensive command to run again.
-
-With the wrong Dockerfile order, changing application code also invalidated the dependency layer.
-
----
+|-------|------------------|-----------:|
+| b · app.txt changed | CACHED | fast |
+| c · deps.txt changed | not cached | slow (~15 s) |
+| d · app.txt changed, wrong order | not cached | slow (~15 s) |
 
 ## Part 2 · The course API image
 
-### Image size
-
 | Step | Image | Size |
-|---|---|---:|
-| Naive | `course-api:naive` | 1.75 GB |
-| Final optimized | `course-api:lab2` | 248 MB |
-| Reduction against naive | | ~86% |
+|------|-------|-----:|
+| Naive | course-api:naive | 1.75 GB |
+| + .dockerignore, npm ci --omit=dev, exec form | course-api:step1 | 1.75 GB |
+| Multi-stage, node:24-slim, non-root, HEALTHCHECK | course-api:lab2 | 336 MB |
+| Reduction against naive | | ~81 % |
 
-The final Docker image uses:
+`docker stop` before the SIGTERM handler: ~10 s, exit code 137 · after: 0.27 s, exit code 0
 
-- `node:24-alpine`
-- Multi-stage build
-- Production-only dependencies with `npm ci --omit=dev`
-- BuildKit npm cache
-- `.dockerignore`
-- Non-root `node` user
-- Exec-form `CMD`
-- `/healthz` endpoint
-- Docker `HEALTHCHECK`
-- Graceful `SIGTERM` handling
-- Pinned Node Alpine image digest
-- Multi-platform build
+Log line at the end of the clean stop:
 
-### Container user
+SIGTERM received, closing the server
 
-```text
+
+Output of `docker run --rm course-api:lab2 id`:
 uid=1000(node) gid=1000(node) groups=1000(node)
-```
 
-The application runs as a non-root user.
 
-### Health check
+Output of `docker ps` showing (healthy):
+daa2e371e729 course-api:lab2 "docker-entrypoint.s…" 25 seconds ago Up 25 seconds (healthy) 0.0.0.0:8080->5000/tcp api
 
-```text
-healthy
-```
 
-The API exposes the `/healthz` endpoint and Docker reports the container as healthy.
-
-### Graceful shutdown
-
-The final application contains a `SIGTERM` handler that closes the HTTP server and database pool before exiting.
-
-This allows the application to terminate cleanly instead of waiting for Docker to force-kill the process.
-
----
 
 ## Part 3 · Linux drills
 
-### 3.1 Userspace and kernel
+Ran inside a `ubuntu:24.04` container on a `labnet` bridge network, with a second `nginx:alpine` container called `web` on the same network.
 
-Inside the Ubuntu container:
+**3.1 — Distro vs kernel**
 
-```text
-Ubuntu 24.04.5 LTS (Noble Numbat)
-```
+root@a1c57f8a6e50:/# head -3 /etc/os-release
+PRETTY_NAME="Ubuntu 24.04.5 LTS"
+NAME="Ubuntu"
+VERSION_ID="24.04"
 
-Kernel:
+root@a1c57f8a6e50:/# uname -r
+6.18.40.1-microsoft-standard-WSL2
+Ubuntu is the container's userland. The kernel is the host WSL2 VM's (`6.18.40.1-microsoft-standard-WSL2`), shared by every container on this machine — that's why even a Debian- or Alpine-based container would report the same kernel.
 
-```text
-6.18.40.1-microsoft-standard
-```
-
-`/etc/os-release` describes the userspace distribution inside the container.
-
-`uname -r` shows the kernel used by the Docker/WSL host environment. Containers have their own userspace but share the host kernel.
-
-### 3.2 Text processing
-
-Original file:
-
-```text
-chef tech
-ansible tech
-docker tech
-```
-
-After using `sed`:
-
-```text
+**3.2 — sed substitution**
+root@a1c57f8a6e50:/# cat /lab/newtools.txt
 chef tools
 ansible tools
 docker tools
-```
 
-The command replaced the word `tech` with `tools` in the file.
 
-### 3.3 Logs
+**3.3 — 20 curl requests**
 
-Twenty requests were sent to a missing nginx path to generate HTTP 404 responses.
+root@a1c57f8a6e50:/# for i in $(seq 20); do curl -s -o /dev/null http://web/nope; done
 
-The logs can be filtered using:
-
-```bash
-docker logs web 2>/dev/null | grep -c '" 404 '
-```
-
-Result:
-
-```text
+turiba@Karanveer:...$ docker logs web 2>/dev/null | grep -c '" 404 '
 20
-```
 
-This demonstrates how container logs can be filtered to count specific HTTP status codes.
+nginx answered each request with 404 (the file doesn't exist), so the count is exactly 20.
 
-### 3.4 File permissions
+**3.4 — Permissions**
+root@a1c57f8a6e50:/# ls -l /lab/f
+-rwxr-x--- 1 root root 7 Oct 7 18:23 /lab/f
 
-File permissions:
-
-```text
--rwxr-x--- 1 root root 7 /lab/f
-```
-
-Attempting to read the file as the student user resulted in:
-
-```text
+root@a1c57f8a6e50:/# su - student -c 'cat /lab/f'
 cat: /lab/f: Permission denied
-```
 
-The file has mode `750` and is owned by `root:root`.
 
-The owner has read, write, and execute permissions. The group has read and execute permissions. Other users have no permissions.
+Mode `750` gives read+execute to the owner (root) and execute-only to the group. `student` is neither owner nor group member, so reading the file is denied — the kernel enforces the mode.
 
-Because the student user is neither the owner nor a member of the root group, the student cannot read the file.
+**3.5 — Environment variables**
 
-### 3.5 Environment variables
+root@a1c57f8a6e50:/# APP_ENV=staging; sh -c 'echo "child sees: $APP_ENV"'
+child sees:
 
-Before exporting the variable, a child process could not see it.
-
-After:
-
-```bash
-export STAGE=staging
-```
-
-the child process showed:
-
-```text
+root@a1c57f8a6e50:/# export APP_ENV=staging
+root@a1c57f8a6e50:/# sh -c 'echo "child sees: $APP_ENV"'
 child sees: staging
-```
 
-A normal shell variable is not automatically inherited by child processes. `export` makes the variable part of the process environment so child processes can access it.
 
-### 3.6 PID 1 and stopping containers
+`VAR=x cmd` sets the variable only for that one process's environment — the child `sh` doesn't see it. `export` adds it to the shell's environment, which the child inherits.
 
-PID 1 inside the lab container was:
+**3.6 — PID 1**
 
-```text
+`VAR=x cmd` sets the variable only for that one process's environment — the child `sh` doesn't see it. `export` adds it to the shell's environment, which the child inherits.
+
+root@a1c57f8a6e50:/# cat /proc/1/cmdline | tr '\0' ' '
 bash
-```
 
-Stopping the container took:
+turiba@Karanveer:...$ time docker stop lab
+real 0m0.060s
 
-```text
-real 0m4.009s
-```
 
-PID 1 has special importance inside a container because Docker sends the termination signal to PID 1.
+PID 1 is `bash`. `docker stop` sends SIGTERM to PID 1, but the kernel ignores SIGTERM for PID 1 unless the process installs a handler. This run stopped in 0.06 s because bash was already exiting; when bash is actively serving a session, the same stop takes the full 10-second grace period before Docker sends SIGKILL. That's exactly the same problem the API had before we added the SIGTERM handler in Part 2.4.
 
-If PID 1 does not respond correctly to the termination signal, Docker waits for its configured stop timeout before forcing the process to terminate.
+**3.7 — DNS and port mapping**
+turiba@Karanveer:...$ docker exec lab getent hosts web
+172.18.0.2 web
 
-### 3.7 Container networking
-
-Docker DNS resolved the nginx container name:
-
-```text
-172.18.0.2      web
-```
-
-A request from the lab container returned:
-
-```text
+turiba@Karanveer:...$ docker exec lab curl -sI http://web/ | head -1
 HTTP/1.1 200 OK
-```
 
-nginx was listening on port 80 inside the container:
+turiba@Karanveer:...$ docker exec web netstat -ltn
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address Foreign Address State
+tcp 0 0 0.0.0.0:80 0.0.0.0:* LISTEN
+tcp 0 0 127.0.0.11:46541 0.0.0.0:* LISTEN
+tcp 0 0 :::80 :::* LISTEN
 
-```text
-0.0.0.0:80
+turiba@Karanveer:...$ curl -sI http://localhost:8081/ | head -1
+HTTP/1.1 200 OK
 
 
-1. cow:bad contains no /big.file, yet it is much bigger than cow:good. Why?
-Docker image layers are immutable. In cow:bad, the large file was created in one layer and deleted in a later layer. The deletion only hides the file; the original data remains in the earlier layer. In cow:good, creation and deletion happen in the same layer, so the large file is not preserved in the final image.
+Two different addresses reach the same nginx: `172.18.0.2:80` is the internal labnet address (resolved via Docker's embedded DNS at `127.0.0.11`), and `localhost:8081` is the host-published port mapped to the container's port 80. Both work because the container is bound to `0.0.0.0` inside and published by Docker on the host.
 
-2. Why does the order of COPY and RUN lines decide how long a rebuild takes?
-Docker reuses cached layers until an instruction or one of its inputs changes. Once a layer is invalidated, subsequent dependent layers must be rebuilt. Copying dependency manifests before application source code allows the expensive dependency installation layer to stay cached when only application code changes.
 
-3. Why can docker stop take several seconds before a container terminates?
-Docker first sends a termination signal to the container's PID 1 process and waits for the configured stop timeout. If the process does not handle the signal and exit cleanly, Docker eventually force-kills it. Adding proper SIGTERM handling allows the application to close its server and resources and exit cleanly.
+## Part 4 · Broken containers
 
-4. Name three things the naive image contained that course-api:lab2 does not.
-The optimized image removes or avoids several unnecessary items, including:
-1. Development dependencies.
-2. Local .env files and secrets.
-3. Build/development files such as Dockerfiles, documentation, and other files excluded by .dockerignore.
+## Part 4 · Broken containers
+
+### lab2-broken:1
+- **Symptom:** exits immediately, `Exited (127)`, log `sh: nodemon: not found`
+- **Cause:** `CMD ["npm","run","dev"]` runs the `dev` script, which uses `nodemon` — a devDependency removed by `npm ci --omit=dev`
+- **Fix:** `CMD ["node", "server.js"]` — production images run the app directly, not the dev script
+
+### lab2-broken:2
+- **Symptom:** `exec /entrypoint.sh: no such file or directory`, though `ls -l /entrypoint.sh` shows the file exists
+- **Cause:** `cat -A /entrypoint.sh` shows `^M$` at line ends — the file has Windows CRLF line endings. The kernel reads the shebang as `#!/bin/sh^M` and looks for an interpreter named `/bin/sh\r`, which doesn't exist.
+- **Fix:** write the entrypoint with LF endings — `RUN sed -i 's/\r$//' entrypoint.sh`, `dos2unix`, or set `*.sh text eol=lf` in `.gitattributes`
+
+### lab2-broken:3
+- **Symptom:** container runs, but `curl localhost:8082` → `curl: (52) Empty reply from server`
+- **Cause:** `docker exec <c> netstat -ltn` shows the app listening on `127.0.0.1:5000` — bound to container-local loopback only, so the published port on the host has nothing to talk to
+- **Fix:** bind to `0.0.0.0` — `app.listen(PORT, '0.0.0.0')` or set `HOST=0.0.0.0`
+
+### lab2-broken:4
+- **Symptom:** `docker logs b4` → `Database not reachable (connect ECONNREFUSED 127.0.0.1:5432)`
+- **Cause:** `DB_HOST` inside the container is `127.0.0.1` — the container's own loopback, where no database is listening
+- **Fix:** set `DB_HOST=db` — the service name of the database on the compose network
+
+### lab2-broken:5
+- **Symptom:** exits at once with `Error: EACCES: permission denied, open '/app/data/todos.log'`
+- **Cause:** the app runs as `uid=1000(node)`, but `ls -lnd /app/data` shows the folder is owned by `root:root` with mode `drwxr-xr-x` — the `node` user cannot create a file in it
+- **Fix:** `COPY --chown=node:node . .` plus `RUN mkdir -p /app/data && chown node:node /app/data` in the Dockerfile — or write logs to `/tmp`
+## Answers
+
+1. **Why is `cow:bad` 50 MB bigger than `cow:good` even though neither contains `/big.file`?**
+   Docker layers are immutable. `cow:bad` writes `/big.file` in one layer and deletes it in a second layer — the delete only adds a whiteout marker; the 50 MB remains in the earlier layer. `cow:good` does both in one `RUN`, so the file never enters any layer. This is why "create and remove" always goes in the same `RUN`.
+
+2. **Why does the order of `COPY` and `RUN` lines decide rebuild time?**
+   Docker caches each layer. When an instruction's inputs change, that layer and every layer after it is rebuilt. If you `COPY . .` before `RUN npm ci`, editing any file invalidates the `npm ci` layer, forcing the slow install to rerun. Putting `COPY package*.json` first, then `RUN npm ci`, then `COPY . .` means only the last step reruns on code changes.
+
+3. **Why did `docker stop` take 10 seconds before adding the SIGTERM handler?**
+   Node was PID 1 but had no SIGTERM handler. The kernel ignores SIGTERM for PID 1 unless the process handles it. Docker waits out the 10 s grace period, then sends SIGKILL — exit 137. Adding `process.on('SIGTERM', …)` lets the process shut down cleanly and exit 0 in under a second.
+
+4. **Three things the naive image contains that `course-api:lab2` does not:**
+   - Full Debian userland (~1.1 GB) instead of Debian slim
+   - Dev dependencies installed by `npm install`
+   - The `.env` file, `.git`, and the `Dockerfile` (excluded by `.dockerignore`)
+   - The root user (lab2 runs as `node`)
+   - No HEALTHCHECK (lab2 defines one)

@@ -10,6 +10,7 @@ node_modules/
 npm-debug.log*
 *.tar
 
+
 # Editors and operating systems
 .DS_Store
 .vscode/*
@@ -17,3 +18,6 @@ npm-debug.log*
 
 # Test output
 coverage/
+
+# Lab 4: database dumps never go into Git
+backup/
