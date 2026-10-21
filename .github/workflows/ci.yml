@@ -34,7 +34,7 @@ jobs:
           node-version: 24
       - run: npm ci
       - name: Lint
-        run: npm run npm run lint                           # B2: the npm script that runs ESLint (slide 18)
+        run: npm run lint                           # B2: the npm script that runs ESLint (slide 18)
 
   unit:
     name: unit
@@ -50,7 +50,7 @@ jobs:
           node-version: 24
       - run: npm ci
       - name: Unit tests (no database)
-        run: npm npm test                               # B3: the npm script for the small tests (slide 17)
+        run: npm test                               # B3: the npm script for the small tests (slide 17)
 
   integration:
     name: integration
@@ -94,7 +94,7 @@ jobs:
         run: >-
           curl --silent --show-error --fail
           --retry 30 --retry-delay 1 --retry-all-errors
-          "$API_URL/http://localhost:5000/healthz"                           # B7: the path that answers 200 only when the database works (slide 21)
+          "http://localhost:5000/healthz"                           # B7: the path that answers 200 only when the database works (slide 21)
       - name: Integration tests
         run: npm run test:integration
       - name: "On failure: the API log"
