@@ -1,8 +1,8 @@
 # Lab 5 · Your first CI pipeline
 
-GitHub user: <you> · Reference files used (Lab 2 fallback): no
+GitHub user: ankitamandlik5-web · Reference files used (Lab 2 fallback): no
 
-![ci](https://github.com/<you>/turiba-devops-labs/actions/workflows/ci.yml/badge.svg?branch=main)
+![ci](https://github.com/ankitamandlik5-web/turiba-devops-labs/actions/workflows/ci.yml/badge.svg?branch=main)
 
 <!-- Keep every heading as it is: the grader finds the sections by name. Replace every blank (four underscores), and your user name placeholder in the first line and in the badge URL: write your GitHub user name exactly as GitHub shows it. -->
 
