@@ -78,7 +78,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'internal error' });
 });
 
-const server = app.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`API listening on port ${PORT}`);
 });
 
