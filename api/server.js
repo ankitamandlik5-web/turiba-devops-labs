@@ -93,3 +93,6 @@ ensureSchema()
   });
 
 // Lab 2 (step 2.4): add the SIGTERM handler here.
+
+// Startup banner
+require('./banner');
