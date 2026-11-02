@@ -1,31 +1,24 @@
 # Lab 6 · Test what you ship, ship a release
 
-GitHub user: <you> · Reference pipeline used (Part 0 fallback): no
-
-<!-- Keep every heading as it is: the grader finds the sections by name. Replace every blank (four underscores), and <you> in the first line and in section 3. -->
+GitHub user: ankitamandlik5-web · Reference pipeline used (Part 0 fallback): no
 
 ## 1 · Smoke test
 
-- The names of my smoke-test steps in the `image` job: ____
-- What my smoke test asks, and what makes it fail: ____
-- 🔮 Part 1, before my first run: will my code pass the smoke test? I predicted ____ because ____. What happened: ____
-- 🔮 Part 2, before the checks finished: which checks will go red after `break.sh`? I predicted ____ because ____
+- The names of my smoke-test steps in the `image` job: `Build for the smoke test (amd64, kept on the runner)` and `Smoke test the image`
+- What my smoke test asks, and what makes it fail: It uses `curl` to request `GET http://localhost:5000/`. It fails if the container crashes on startup or if the API doesn't return a successful HTTP response.
+- 🔮 Part 1, before my first run: will my code pass the smoke test? I predicted it would pass because the code and Dockerfile were unchanged from Lab 5, and the API was working. What happened: It passed on the first run and printed the API's version JSON.
+- 🔮 Part 2, before the checks finished: which checks will go red after `break.sh`? I predicted the `image` check would go red because it's the only one that tests the built Docker image. The others test the source code directly.
 
 ## 2 · What broke and how I found it
 
-- The check and the step that went red: ____
+- The check and the step that went red: The `image` check went red, specifically in the `Smoke test the image` step.
 - The log line that showed the cause (copied from the log):
 
 ```text
-____
-```
-
-- The cause, in my own words: ____
-- Why `lint`, `unit` and `integration` stayed green: ____
-- My fix, and the commit that made it: ____
+Error: Cannot find module './banner'
 
 ## 3 · Release
 
-- Release page: https://github.com/<you>/turiba-devops-labs/releases/tag/v0.2.0
-- Image: `ghcr.io/<you>/turiba-devops-labs/api:0.2.0`, platforms (from `docker buildx imagetools inspect`): ____
+- Release page: https://github.com/ankitamandlik5-web/turiba-devops-labs/releases/tag/v0.2.0
+- Image: `ghcr.io/ankitamandlik5-web/turiba-devops-labs/api:0.2.0`, platforms (from `docker buildx imagetools inspect`): linux/amd64, linux/arm64
 - One thing in Part 3 that didn't work the first time, and how I fixed it: ____
