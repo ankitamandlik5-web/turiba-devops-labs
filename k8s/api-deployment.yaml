@@ -18,3 +18,4 @@ spec:
           image: ghcr.io/martinsturiba/turiba-devops-labs/api:0.2.0
           ports:
             - containerPort: 5000
+# trigger CI
