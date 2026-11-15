@@ -23,7 +23,6 @@ api-7ff476cc44-lnglc   1/1     Running   0          18m
 
 ## 1 · Database with storage
 
-- 🔮 Before deleting the database Pod: will your todo still be there afterwards? I predicted **yes** because **PostgreSQL stores its data in the PVC `db-data` (`/var/lib/postgresql/data`), not in the container filesystem. A new Pod mounts the same claim, so the rows survive the Pod being replaced.** What happened: **the todo was still listed after the new `db` Pod came up.** The first `GET` after the replacement returned `500` once while the API reconnected; the second `GET` listed the todo.
 $ kubectl -n course get pvc,pv
 NAME                            STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
 persistentvolumeclaim/db-data   Bound    pvc-37820898-039f-4b10-9e6c-95caf22c5a99   1Gi        RWO            standard       <unset>                 120m
@@ -51,9 +50,7 @@ db-864878fdcf-nl89w   1/1     Running   0          6s
 $ curl -s localhost:8080/api/todos
 [{"id":1,"title":"survive a restart","done":false,"created_at":"2026-11-15T14:15:50.247Z"},{"id":2,"title":"second survive test","done":false,"created_at":"2026-11-15T14:36:35.977Z"}]
 
-
 ## 2 · Connect the API
-```text
 $ kubectl -n course logs deployment/api -c wait-for-db
 Found 3 pods, using pod/api-57679498f6-skn58
 db:5432 - no response
@@ -67,7 +64,6 @@ API listening on port 5000
 Database ready
 Database connection lost: terminating connection due to administrator command
 
-- 🔮 Before looking: will `kubectl -n course get secret db-secret -o yaml` show your password? I predicted ____ because ____. What I saw, in words (don't paste the value): ____
 
 ## 3 · Health and resources
 
@@ -100,6 +96,6 @@ api-84d76fb6c8-zn6q9   1/1     Running   1 (18s ago)   58s
 
 | # | What I saw | The command, and the line of output that showed it | My fix (commit) |
 |--:|------------|-----------------------------------------------------|-----------------|
-| 1 | ____ | ____ | ____ |
-| 2 | ____ | ____ | ____ |
-| 3 | ____ | ____ | ____ |
+| 1 | API Pods stuck at Init:0/1 | kubectl -n course logs api-cc9f68cb6-5f8fh -c wait-for-db → database:5432 - no response | 484bf13 fix(k8s): point DB_HOST back at the db service |
+| 2 | API Pods at CreateContainerConfigError | kubectl -n course describe pod api-8496665cc4-7sp7q → couldn't find key pasword in Secret course/db-secret | 4ec02c8 fix(k8s): correct the Secret key name for the API password |
+| 3 | API Pods at 0/1 Running, never Ready | kubectl -n course describe pod api-95b8cd95f-plxpp → Readiness probe failed: Get "http://10.244.0.36:5001/healthz": dial tcp 10.244.0.36:5001: connect: connection refused | 9fae262 fix(k8s): use the API port 5000 in the readiness probe |
