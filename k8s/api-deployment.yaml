@@ -13,20 +13,46 @@ spec:
       labels:
         app: api
     spec:
+      # ── Part 2: init container ──────────────────────────────────────────
+      # Waits until the db Service is reachable before the api starts.
+      # Without it, the API can start before PostgreSQL, never create its
+      # "todos" table, and answer 500 forever while every Pod looks fine.
       initContainers:
         - name: wait-for-db
           image: postgres:17-alpine
           command: ["sh", "-c", "until pg_isready -h \"$DB_HOST\" -p \"$DB_PORT\"; do echo waiting for the database; sleep 2; done"]
           envFrom:
             - configMapRef: { name: app-config }
+
       containers:
         - name: api
           image: ghcr.io/martinsturiba/turiba-devops-labs/api:0.2.0
           ports:
             - containerPort: 5000
+
+          # ── Part 2: settings from ConfigMap + password from Secret ──────
           envFrom:
             - configMapRef: { name: app-config }
           env:
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef: { name: db-secret, key: password }
+
+          # ── Part 3: health probes ───────────────────────────────────────
+          # Readiness: "can this Pod take traffic?"  Failing → out of Service.
+          readinessProbe:
+            httpGet: { path: /healthz, port: 5000 }
+            periodSeconds: 5
+          # Liveness: "is it stuck for good?"  Failing → container restarts.
+          # initialDelaySeconds 10 gives the app time to boot before the first check.
+          livenessProbe:
+            httpGet: { path: /healthz, port: 5000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          # ── Part 3: resources ───────────────────────────────────────────
+          # requests = what the scheduler guarantees; limits = hard cap.
+          # Over the memory limit → the container is killed (OOMKilled).
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 128Mi }
