@@ -88,14 +88,14 @@ NAME                   READY   STATUS    RESTARTS      AGE
 api-84d76fb6c8-qbncp   1/1     Running   1 (29s ago)   70s
 api-84d76fb6c8-xv8kk   1/1     Running   1 (22s ago)   62s
 api-84d76fb6c8-zn6q9   1/1     Running   1 (18s ago)   58s
-- How I made Git and the cluster agree again afterwards: ____
+- How I made Git and the cluster agree again afterwards: **I ran `git restore k8s/` to put the committed version (liveness on `/healthz`) back on disk, then `kubectl apply -f k8s/` to roll the Deployment back. `kubectl -n course rollout status deployment/api` finished, the new Pods (`api-57679498f6-*`) came up `1/1 Running` with `RESTARTS 0` and stayed there, and `git diff` printed nothing, so Git and the cluster agree again.**
 
 ## 4 · What broke and how I found it
 
-- 🔮 Before applying the teammate's branch, I expected this to go wrong first: ____
+- 🔮 Before applying the teammate's branch, I expected this to go wrong first: **the API Pods would be stuck at `Init:0/1`, because a wrong `DB_HOST` stops the `wait-for-db` init container before the container can even be created, so it is the earliest point in the startup chain that can fail.**
 
 | # | What I saw | The command, and the line of output that showed it | My fix (commit) |
 |--:|------------|-----------------------------------------------------|-----------------|
-| 1 | API Pods stuck at Init:0/1 | kubectl -n course logs api-cc9f68cb6-5f8fh -c wait-for-db → database:5432 - no response | 484bf13 fix(k8s): point DB_HOST back at the db service |
-| 2 | API Pods at CreateContainerConfigError | kubectl -n course describe pod api-8496665cc4-7sp7q → couldn't find key pasword in Secret course/db-secret | 4ec02c8 fix(k8s): correct the Secret key name for the API password |
-| 3 | API Pods at 0/1 Running, never Ready | kubectl -n course describe pod api-95b8cd95f-plxpp → Readiness probe failed: Get "http://10.244.0.36:5001/healthz": dial tcp 10.244.0.36:5001: connect: connection refused | 9fae262 fix(k8s): use the API port 5000 in the readiness probe |
+| 1 | API Pods stuck at `Init:0/1` | `kubectl -n course logs api-cc9f68cb6-5f8fh -c wait-for-db` → `database:5432 - no response` | `484bf13` `fix(k8s): point DB_HOST back at the db service` |
+| 2 | API Pods at `CreateContainerConfigError` | `kubectl -n course describe pod api-8496665cc4-7sp7q` → `couldn't find key pasword in Secret course/db-secret` | `4ec02c8` `fix(k8s): correct the Secret key name for the API password` |
+| 3 | API Pods at `0/1 Running`, never Ready | `kubectl -n course describe pod api-95b8cd95f-plxpp` → `Readiness probe failed: Get "http://10.244.0.36:5001/healthz": dial tcp 10.244.0.36:5001: connect: connection refused` | `9fae262` `fix(k8s): use the API port 5000 in the readiness probe` |
