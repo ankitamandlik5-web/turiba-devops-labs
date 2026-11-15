@@ -36,12 +36,12 @@ spec:
           env:
             - name: DB_PASSWORD
               valueFrom:
-                secretKeyRef: { name: db-secret, key: password }
+                secretKeyRef: { name: db-secret, key: pasword }
 
           # ── Part 3: health probes ───────────────────────────────────────
           # Readiness: "can this Pod take traffic?"  Failing → out of Service.
           readinessProbe:
-            httpGet: { path: /healthz, port: 5000 }
+            httpGet: { path: /healthz, port: 5001 }
             periodSeconds: 5
           # Liveness: "is it stuck for good?"  Failing → container restarts.
           # initialDelaySeconds 10 gives the app time to boot before the first check.
