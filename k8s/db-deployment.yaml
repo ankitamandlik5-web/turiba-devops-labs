@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db
+  namespace: course
+spec:
+  replicas: 1
+  # Recreate, so two PostgreSQL servers never share one data folder.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          ports:
+            - containerPort: 5432
+
+          # ── Part 1: env from ConfigMap + password from Secret ───────────
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef: { name: app-config, key: DB_USER }
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef: { name: app-config, key: DB_NAME }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: db-secret, key: password }
+
+          # ── Part 1: data on the PVC ─────────────────────────────────────
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+
+          # ── Part 3: health probes ───────────────────────────────────────
+          # -h localhost forces pg_isready to check over TCP. On its first
+          # start, PostgreSQL runs a temporary server that does not listen
+          # on TCP, so a TCP check would fail while it is still initialising.
+          readinessProbe:
+            exec:
+              command: [pg_isready, -h, localhost, -U, todo, -d, todo]
+            periodSeconds: 5
+          # 30s delay: a database needs time on its first start.
+          livenessProbe:
+            exec:
+              command: [pg_isready, -h, localhost, -U, todo, -d, todo]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+
+          # ── Part 3: resources ───────────────────────────────────────────
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 256Mi }
+
+      # ── Part 1: the PVC the Pod mounts ──────────────────────────────────
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: db-data
