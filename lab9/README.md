@@ -20,12 +20,11 @@ $ helm template course-app charts/course-app -n course --set api.replicas=2 | gr
   replicas: 1
           image: postgres:17-alpine
 
-____
 ```
 
 
-- 🔮 Before running `helm template … --set api.replicas=2`: which lines of the output change, and which file decides that? I predicted ____ because ____. What happened: ____
-- In my own words, why the Namespace and the Secret are **not** in the chart: ____
+- 🔮  Before running helm template … --set api.replicas=2: which lines of the output change, and which file decides that? I predicted that the API Deployment's replicas line would change from 3 to 2 because the --set flag overrides the default value. What happened: It changed to 2. The values.yaml file decides what the output says when --set is not used.
+In my own words, why the Namespace and the Secret are not in the chart: Helm marks everything it creates as its own and refuses to take over objects it didn't make. Because we create the Namespace and Secret manually with kubectl before the install, putting them in the chart would cause an "invalid ownership metadata" error.
 
 ## 2 · Install, upgrade, rollback
 
@@ -66,22 +65,20 @@ REVISION  STATUS      DESCRIPTION
 1         superseded  Install complete
 2         superseded  Upgrade complete
 3         deployed    Rollback to 1
-____
 ```
 
-- 🔮 Before the upgrade with a tag that doesn't exist: will `helm upgrade` say it failed? Will `GET /api/todos` still answer? I predicted ____ because ____. What happened: ____
-- 🔮 Before the rollback: which revision number will `helm rollback course-app 1` create? I predicted ____ because ____. What happened: ____
-- 🔮 Before `helm uninstall` and a new `helm install`: will your todo still be there? I predicted ____ because ____. What happened: ____
+- 🔮  Before the upgrade with a tag that doesn't exist: will helm upgrade say it failed? Will GET /api/todos still answer? I predicted the upgrade would fail and the API would go down because the image does not exist. What happened: helm upgrade said "STATUS: deployed" because it doesn't wait for Pods. The new Pod was stuck in ErrImagePull, but the old Pods kept serving the todo, so it still answered.
+- 🔮 Before the rollback: which revision number will helm rollback course-app 1 create? I predicted it would overwrite revision 2 because it goes back to revision 1. What happened: It created revision 3. A rollback never rewrites history; it makes a new revision with the old settings.
+- 🔮 Before helm uninstall and a new helm install: will your todo still be there? I predicted the todo would still be there because it is saved in the database. What happened: The todo was gone ([]). helm uninstall deletes everything the release made, including the PVC db-data.
 
 ```text
 $ curl -s localhost:8080/api/todos             (after uninstall and install)
 []
-____
 ```
 
 ## 3 · What broke and how I found it
 
-- 🔮 Before upgrading with the teammate's branch, I expected this to go wrong first: ____
+- 🔮 Before upgrading with the teammate's branch, I expected this to go wrong first: the Helm upgrade would fail with a "nil pointer" error because the values in values.yaml didn't match what the template was asking for.
 
 | # | What I saw | The command, and the line of output that showed it | My fix (commit) |
 |--:|------------|-----------------------------------------------------|-----------------|
