@@ -18,8 +18,8 @@ jobs:
       run:
         working-directory: api
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
       - run: npm ci
@@ -34,8 +34,8 @@ jobs:
       run:
         working-directory: api
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
       - run: npm ci
@@ -52,7 +52,7 @@ jobs:
         env:
           POSTGRES_USER: todo
           POSTGRES_DB: todo
-          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          POSTGRES_PASSWORD: testingpassword
         ports:
           - 5432:5432
         options: >-
@@ -65,19 +65,19 @@ jobs:
       DB_PORT: 5432
       DB_USER: todo
       DB_NAME: todo
-      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      DB_PASSWORD: testingpassword
       PORT: 5000
       API_URL: http://localhost:5000
-    defaults:
-      run:
-        working-directory: api
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm ci
-      - name: Start the API from source (not the image)
+      - name: Install dependencies
+        working-directory: api
+        run: npm ci
+      - name: Start the API from source
+        working-directory: api
         run: node server.js > server.log 2>&1 &
       - name: Wait until the API answers from the database
         run: |
@@ -85,13 +85,12 @@ jobs:
           --retry 30 --retry-delay 1 --retry-all-errors \
           "http://localhost:5000/healthz"
       - name: Integration tests
+        working-directory: api
         run: npm run test:integration
       - name: "On failure: the API log"
         if: failure()
+        working-directory: api
         run: cat server.log
-      - name: "On failure: the database log"
-        if: failure()
-        run: docker logs "${{ job.services.db.id }}"
 
   image:
     name: image
@@ -101,30 +100,28 @@ jobs:
     permissions:
       contents: read
       packages: write
-      security-events: write # Added for Trivy
+      security-events: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@v4
       - name: Image name in lowercase
         run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/api" >> "$GITHUB_ENV"
-      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0docker/setup-qemu-action@53851d14592bedcffcf25ea5147732e806ff02bb # v3.0.0
-      - uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
       - name: Log in to GHCR (main only)
         if: github.event_name == 'push'
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
-      # 1. Build the image locally for testing
+
       - name: Build for the smoke test (amd64, kept on the runner)
-        uses: docker/build-push-action@0adf9959216b96bec444f325f1e493d4aa344497 # v6.14.0
+        uses: docker/build-push-action@v6
         with:
           context: api
           load: true
           tags: ${{ env.IMAGE }}:${{ github.sha }}
-      
-      # 2. Test the image
+
       - name: Smoke test the image
         run: |
           docker run -d --name smoke -p 5000:5000 "$IMAGE:${{ github.sha }}"
@@ -134,9 +131,8 @@ jobs:
             exit 1
           fi
 
-      # 3. Trivy scan (T2 requirement) - fails on CRITICAL vulnerabilities that have a fix
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: '${{ env.IMAGE }}:${{ github.sha }}'
           format: 'table'
@@ -145,9 +141,8 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL'
 
-      # 4. If tests pass, build for multi-platform and push
       - name: Build, and push from main only
-        uses: docker/build-push-action@0adf9959216b96bec444f325f1e493d4aa344497 # v6.14.0
+        uses: docker/build-push-action@v6
         with:
           context: api
           platforms: ${{ github.event_name == 'push' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
@@ -162,10 +157,10 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Required for gitleaks to scan history
+          fetch-depth: 0
       - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@1938557f6a58837331b99822ab17b8e536e7bef9 # v2.3.0
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
