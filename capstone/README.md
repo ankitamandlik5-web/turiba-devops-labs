@@ -57,7 +57,7 @@ T2 (Security gates): gitleaks and Trivy are in ci.yml. Dependabot PRs were handl
 T3 (Observability): observability/dashboard.json. See screenshot below.
 
 Grafana Dashboard
-https://../raw/main/observability/dashboard.png
+![Grafana Dashboard](../raw/main/observability/dashboard.png)
 
 When it breaks
 If the app fails on the cluster, here are the 3 most likely faults and how to check them:
