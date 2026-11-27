@@ -86,4 +86,25 @@ Dependabot PRs (#36 and #37) were closed with a comment because Dependabot runs 
 api/Dockerfile is based on the course's Lab 2 reference file.
 
 AI use
+## Extension
+
+**Chosen: SBOM and a signed image**
+
+I chose this extension because supply chain security is critical. Even if the CI passes and the image is public, users need to know that the image they pull was built by my specific GitHub Actions workflow and hasn't been tampered with.
+
+This changes the release process by adding `sbom: true` to the Docker build step, which automatically generates a Software Bill of Materials (SBOM) attesting to the exact packages inside the image. It also installs Cosign and uses GitHub's OIDC identity to keylessly sign the image digest. There is no private key to manage or leak.
+
+**Trade-offs:** The main trade-off is that the release job now takes slightly longer to run because it has to generate the SBOM and interact with Sigstore's transparency log. However, this is a small price to pay for cryptographic proof of image integrity.
+
+**Evidence:**
+The signature and SBOM can be verified using the following commands:
+```bash
+cosign verify ghcr.io/ankitamandlik5-web/turiba-devops-labs/api:1.0.4 \
+  --certificate-identity-regexp "^https://github.com/ankitamandlik5-web/turiba-devops-labs/\.github/workflows/release\.yml@refs/tags/v.*$" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
+
+cosign verify-attestation ghcr.io/ankitamandlik5-web/turiba-devops-labs/api:1.0.4 \
+  --type spdxjson \
+  --certificate-identity-regexp "^https://github.com/ankitamandlik5-web/turiba-devops-labs/\.github/workflows/release\.yml@refs/tags/v.*$" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
 I used AI tools to help debug GitHub Actions errors (specifically fixing the working-directory issue in the integration job and resolving invalid action SHAs). I also used AI to help draft this README and the OpenTofu configuration structure.
