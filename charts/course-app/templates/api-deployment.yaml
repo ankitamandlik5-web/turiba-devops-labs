@@ -28,7 +28,7 @@ spec:
           env:
             - name: DB_PASSWORD
               valueFrom:
-                secretKeyRef: { name: db-secret, key: password }
+                secretKeyRef: { name: {{ .Values.db.secretName }}, key: password }
           readinessProbe:
             httpGet: { path: /healthz, port: 5000 }
             periodSeconds: 5

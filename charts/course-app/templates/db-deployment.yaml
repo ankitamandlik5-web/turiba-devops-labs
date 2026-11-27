@@ -31,7 +31,7 @@ spec:
                 configMapKeyRef: { name: app-config, key: DB_NAME }
             - name: POSTGRES_PASSWORD
               valueFrom:
-                secretKeyRef: { name: db-secret, key: password }
+                secretKeyRef: { name: {{ .Values.db.secretName }}, key: password }
 
           # ── Part 1: data on the PVC ─────────────────────────────────────
           volumeMounts:
