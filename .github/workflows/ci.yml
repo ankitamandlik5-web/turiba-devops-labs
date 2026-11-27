@@ -166,6 +166,6 @@ jobs:
         with:
           fetch-depth: 0 # Required for gitleaks to scan history
       - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@83373cf2f8c4db6e24b41c1a9b0b2f25f3958a1a # v2.3.2
+        uses: gitleaks/gitleaks-action@1938557f6a58837331b99822ab17b8e536e7bef9 # v2.3.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
