@@ -17,7 +17,7 @@ jobs:
       id-token: write # REQUIRED for keyless cosign signing
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       
       - name: Image name in lowercase
         run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/api" >> "$GITHUB_ENV"
